@@ -5,6 +5,7 @@
 #include <QSerialPortInfo>
 #include <QDebug>
 #include <QtWidgets>
+#include <vector>
 
 Dialog::Dialog(QWidget *parent) :
     QDialog(parent),
@@ -13,22 +14,29 @@ Dialog::Dialog(QWidget *parent) :
     ui->setupUi(this);
 
     //********************************
-    //  Arduino Serial Communication
+    //  ARDUINO SERIAL COMMUNCATION
     //********************************
+        //need to make this into a class
 
-    //*** GLOBAL VARIABLE DEFINITION************************************************
+    //******************************************************************************
+    //  GLOBAL VARIABLE DEFINITION
+    //******************************************************************************
 
     arduino_is_available[0] = false;   //initialize port availablity to false
     arduino_port_name[0] == "";        //initalize port name to nothing
+
+
     serialBuffer = "";
     serialBuffer2 = "";
+
 
     //Declaring Arduinos
     arduino = new QSerialPort;
     arduino2 = new QSerialPort;
 
-
-    //*** END OF GLOBAL VARIABLE DEFINITION*****************************************
+    //****************************************************************************
+    //  END OF GLOBAL VARIABLE DEFINITION
+    //****************************************************************************
 
     /*
     //Finds the vendor and product ID for the arduino
@@ -71,56 +79,65 @@ Dialog::Dialog(QWidget *parent) :
 
 
     //***Arduino Port Configuration for each "number_of_arduinos", Indices start at 0
-    if(arduino_is_available[0]) {
+    for (int i = 0; i <= number_of_arduinos; ++i) {
+        if(arduino_is_available[i]) {
 
+            temp_arduino = new QSerialPort;
 
-        //if open need to open and configure the serialport
-        //this is the recommended initalization sequence for arduino configuration
-        arduino->setPortName(arduino_port_name[0]);
-        arduino->open(QSerialPort::ReadWrite);         //Open the port and set to read data from arduino only
-        arduino->setBaudRate(QSerialPort::Baud9600);
-        arduino->setDataBits(QSerialPort::Data8);     //Size of a bite, most modern applications are 8 bit
-        arduino->setParity(QSerialPort::NoParity);
-        arduino->setStopBits(QSerialPort::OneStop);
-        arduino->setFlowControl(QSerialPort::NoFlowControl);
+            //if open need to open and configure the serialport
+            //this is the recommended initalization sequence for arduino configuration
+            temp_arduino->setPortName(arduino_port_name[i]);
+            temp_arduino->open(QSerialPort::ReadWrite);         //Open the port and set to read data from arduino only
+            temp_arduino->setBaudRate(QSerialPort::Baud9600);
+            temp_arduino->setDataBits(QSerialPort::Data8);     //Size of a bite, most modern applications are 8 bit
+            temp_arduino->setParity(QSerialPort::NoParity);
+            temp_arduino->setStopBits(QSerialPort::OneStop);
+            temp_arduino->setFlowControl(QSerialPort::NoFlowControl);
+
+            //Assigns each port to one of six possible arduino serial ports
+            arduino_ID(i);
+
+        }
+        else {
+            //if no port is available then give warning
+
+            QMessageBox::warning(this, "Port 0 Error", "Couldn't find the Arduino for Port 0!");
+        }
+    }
+}
+//***Identifies which arduino is connected and has it start sending data
+void Dialog::arduino_ID(const int arduino_num){
+
+    if (arduino_num == 0){
+        arduino = temp_arduino;
         QObject::connect(arduino, SIGNAL(readyRead()), this, SLOT(readSerial()));   //function to read data
-
     }
-    else {
-        //if no port is available then give warning
-
-        QMessageBox::warning(this, "Port 0 Error", "Couldn't find the Arduino for Port 0!");
-    }
-
-    if(arduino_is_available[1]) {
-
-        //if open need to open and configure the serialport
-        //this is the recommended initalization sequence for arduino configuration
-        arduino2->setPortName(arduino_port_name[1]);
-        arduino2->open(QSerialPort::ReadWrite);         //Open the port and set to read data from arduino only
-        arduino2->setBaudRate(QSerialPort::Baud9600);
-        arduino2->setDataBits(QSerialPort::Data8);     //Size of a bite, most modern applications are 8 bit
-        arduino2->setParity(QSerialPort::NoParity);
-        arduino2->setStopBits(QSerialPort::OneStop);
-        arduino2->setFlowControl(QSerialPort::NoFlowControl);
+    else if (arduino_num == 1){
+        arduino2 = temp_arduino;
         QObject::connect(arduino2, SIGNAL(readyRead()), this, SLOT(readSerial2()));   //function to read data
 
     }
-    else {
-        //if no port is available then give warning
+}
 
-        QMessageBox::warning(this, "Port 0 Error", "Couldn't find the Arduino for Port 0!");
+//***Potentional function to write to the arduino
+void Dialog::updateRBG( QString command){
+    if (arduino->isWritable()){
+        arduino->write(command.toStdString().c_str());
     }
-    //*** End of Arduino Port Configuration
+    else{
+        qDebug() << "Could not write to serial!!";
+    }
+}
 
-}//*** End of Dialog Constructor (main function)
-
+//************************************************************************************
+//      Seperate ReadSerial() Functions for Each Arm Section
+//************************************************************************************
 
 //*** Read and Send to LCD Screen***************************************
 //Need to buffer input to get the full message
+//**need an update LCD screen class
 void Dialog::readSerial()
-{
-    
+{    
     //Reads all data coming from arduino
     serialData = arduino->readAll();
     //takes the data and puts it into a long string one after the other
@@ -130,7 +147,7 @@ void Dialog::readSerial()
     
     //splits the serial buffer by "," to get individual values
     QStringList bufferSplit = serialBuffer.split(",");
-    if (bufferSplit.length() < 5 ){
+    if (bufferSplit.length() < 6 ){
         
         serialData = arduino->readAll();
         serialBuffer += QString::fromStdString(serialData.toStdString());
@@ -139,68 +156,62 @@ void Dialog::readSerial()
     else {
         //else the values in bufferSplit is a good value and assign one of the splits
         //to an LCD
-        qDebug() << "From Arduino 0";
+        int arduino_id = bufferSplit[0].toInt();
+        qDebug() <<"Arduino " << arduino_id ;
         qDebug() << bufferSplit ;
-        Dialog::updateLCD(0,0, bufferSplit[0]);
-        Dialog::updateLCD(0,1, bufferSplit[1]);
-        Dialog::updateLCD(0,2, bufferSplit[2]);
-        Dialog::updateLCD(0,3, bufferSplit[3]);
-        serialBuffer = "" ;         //resets serial buffer so its not infinitely long
-        }
-    
+        Dialog::updateLCD(arduino_id, bufferSplit);
+        //Dialog::updateLCD(arduino_id,0, bufferSplit[1]);
+            //Dialog::updateLCD(arduino_id,1, bufferSplit[2]);
+            //Dialog::updateLCD(arduino_id,2, bufferSplit[3]);
+            //Dialog::updateLCD(arduino_id,3, bufferSplit[4]);
+            serialBuffer = "" ;         //resets serial buffer so its not infinitely long
+
+    }
 }//*** End of Read and Send to LCD Screen
 
 void Dialog::readSerial2()
 {
     serialData2 = arduino2->readAll();
     serialBuffer2 += QString::fromStdString(serialData2.toStdString());
-    QStringList bufferSplit2 = serialBuffer2.split(",");
-    if (bufferSplit2.length() < 5 ){
+    QStringList bufferSplit = serialBuffer2.split(",");
+    if (bufferSplit.length() < 6){
         serialData2 = arduino2->readAll();
         serialBuffer2 += QString::fromStdString(serialData2.toStdString());
     }
     else {
-        qDebug() << "From Arduino 1: ";
-        qDebug() << bufferSplit2 ;
-        Dialog::updateLCD(1,0, bufferSplit2[0]);
-        Dialog::updateLCD(1,1, bufferSplit2[1]);
-        Dialog::updateLCD(1,2, bufferSplit2[2]);
-        Dialog::updateLCD(1,3, bufferSplit2[3]);
+        int arduino_id = bufferSplit[0].toInt();
+        qDebug() << "Arduino " << arduino_id;
+        qDebug() << bufferSplit ;
+
+        Dialog::updateLCD(arduino_id, bufferSplit);
+
+        //Dialog::updateLCD(arduino_id, bufferSplit[1]);
+        //Dialog::updateLCD(arduino_id, bufferSplit[2]);
+        //Dialog::updateLCD(arduino_id, bufferSplit[3]);
+        //Dialog::updateLCD(arduino_id, bufferSplit[4]);
         serialBuffer2 = "" ;         //resets serial buffer so its not infinitely long
     }
     
 }//*** End of Read and Send to LCD Screen
 
+//**********************************************************************
+//  END of ReadSerial()
+//**********************************************************************
 
 //Function to update LCD
-void Dialog::updateLCD(const int arduino_number,const int sensor_number,const QString sensor_reading) {
+//Assumed sensor readings will be received in the same order every time
+void Dialog::updateLCD(const int arduino_number,const QStringList sensor_reading) {
     if (arduino_number == 0) {
-        if (sensor_number == 0) {
-            ui->Post_lcdNumber->display(sensor_reading);
-        }
-        else if (sensor_number == 1) {
-            ui->Ver_lcdNumber->display(sensor_reading);
-        }
-        else if (sensor_number == 2) {
-            ui->Hor_lcdNumber->display(sensor_reading);
-        }
-        else{
-            ui->Omni_lcdNumber->display(sensor_reading);
-        }
+            ui->Post_lcdNumber->display(sensor_reading[1]);
+            ui->Ver_lcdNumber->display(sensor_reading[2]);
+            ui->Hor_lcdNumber->display(sensor_reading[3]);
+            ui->Omni_lcdNumber->display(sensor_reading[4]);
     }
     else if (arduino_number == 1){
-        if (sensor_number == 0) {
-            ui->Post_lcdNumber_2->display(sensor_reading);
-        }
-        else if (sensor_number == 1) {
-            ui->Ver_lcdNumber_2->display(sensor_reading);
-        }
-        else if (sensor_number == 2) {
-            ui->Hor_lcdNumber_2->display(sensor_reading);
-        }
-        else{
-            ui->Omni_lcdNumber_2->display(sensor_reading);
-        }
+            ui->Post_lcdNumber_2->display(sensor_reading[1]);
+            ui->Ver_lcdNumber_2->display(sensor_reading[2]);
+            ui->Hor_lcdNumber_2->display(sensor_reading[3]);
+            ui->Omni_lcdNumber_2->display(sensor_reading[4]);
     }
 }
 
@@ -213,6 +224,9 @@ Dialog::~Dialog()
     }
     if (arduino2->isOpen()){
         arduino2->close();
+    }
+    if (temp_arduino->isOpen()){
+        temp_arduino->close();
     }
     delete ui;
 }//***End of Deconstructor***********************************************

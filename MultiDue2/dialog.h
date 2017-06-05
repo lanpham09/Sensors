@@ -14,7 +14,9 @@ class Dialog : public QDialog
 
 public:
     explicit Dialog(QWidget *parent = 0);
+    void arduino_ID(const int);
     ~Dialog();
+
 
 
 private slots:
@@ -22,11 +24,15 @@ private slots:
     void readSerial();
     void readSerial2();
 
-    void updateLCD(const int , const int ,const QString );
+    void updateLCD(const int ,const QStringList );
+
+    void updateRBG(QString);
 private:
     Ui::Dialog *ui;
     QSerialPort *arduino;
     QSerialPort *arduino2;
+
+    QSerialPort *temp_arduino;
 
     //defining the arduino due
     static const quint16 arduino_due_vendor_id = 10755;  //different arduino vendors thus two different IDs
@@ -35,11 +41,14 @@ private:
     QString arduino_port_name[6];
     bool arduino_is_available[6];
 
+
     QByteArray serialData;
     QString serialBuffer;
     QByteArray serialData2;
     QString serialBuffer2;
 
+    //OmniFrame Specific
+    int arms_sending[7];
 };
 
 #endif // DIALOG_H
